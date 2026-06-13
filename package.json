@@ -1,0 +1,13 @@
+{
+  "name": "@gpoulles/worktree-dashboard",
+  "version": "0.1.0",
+  "description": "A local dashboard for monitoring and managing git worktrees with Claude Code agents",
+  "type": "module",
+  "bin": {
+    "worktree-dashboard": "./bin/cli.mjs"
+  },
+  "files": ["bin", "src"],
+  "engines": { "node": ">=18" },
+  "keywords": ["claude-code", "worktree", "git", "dashboard", "developer-tools"],
+  "license": "MIT"
+}

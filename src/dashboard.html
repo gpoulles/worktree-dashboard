@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Worktree Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --blue: #58a6ff;
+      --amber: #d29922;
+      --gray: #6e7681;
+      --red: #f85149;
+      --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-logo {
+      height: 32px;
+      width: auto;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+
+    .header-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .version-badge {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+    }
+
+    .pulse-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .pulse.disconnected { background: var(--red); animation: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { background: #21262d; border-color: #8b949e; }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0d1117;
+      font-weight: 600;
+    }
+
+    .btn-primary:hover { background: #79b8ff; border-color: #79b8ff; }
+
+    .btn-danger { border-color: var(--red); color: var(--red); }
+    .btn-danger:hover { background: rgba(248,81,73,0.1); }
+
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+    /* ── Summary bar ─────────────────────────────────────────── */
+    .summary {
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      flex-wrap: wrap;
+    }
+
+    .summary-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .summary-count {
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .summary-item.total .summary-count { color: var(--text); }
+    .summary-item.working .summary-count { color: var(--green); }
+    .summary-item.thinking .summary-count { color: var(--blue); }
+    .summary-item.waiting .summary-count { color: var(--amber); }
+    .summary-item.idle .summary-count { color: var(--gray); }
+
+    /* ── Cards ───────────────────────────────────────────────── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+      padding: 20px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.2s;
+    }
+
+    .card:hover { border-color: #58a6ff44; }
+
+    .card-top-border {
+      height: 3px;
+    }
+
+    .status-working .card-top-border { background: var(--green); }
+    .status-thinking .card-top-border { background: var(--blue); }
+    .status-waiting .card-top-border { background: var(--amber); }
+    .status-done .card-top-border { background: var(--gray); }
+    .status-idle .card-top-border { background: var(--gray); }
+    .status-no-session .card-top-border { background: var(--border); }
+
+    .card-body { padding: 14px 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .card-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      word-break: break-all;
+    }
+
+    .main-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: #21262d;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+
+    .status-badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .badge-working  { color: var(--green);  background: rgba(63,185,80,.12); }
+    .badge-thinking { color: var(--blue);   background: rgba(88,166,255,.12); }
+    .badge-waiting  { color: var(--amber);  background: rgba(210,153,34,.12); }
+    .badge-done     { color: var(--gray);   background: rgba(110,118,129,.12); }
+    .badge-idle     { color: var(--gray);   background: rgba(110,118,129,.12); }
+    .badge-no-session { color: var(--muted); background: rgba(110,118,129,.08); }
+
+    .badge-working::before { animation: pulse 1.5s ease-in-out infinite; }
+
+    .branch-pill {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 8px;
+      background: #21262d;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+    }
+
+    .card-meta-item { display: flex; align-items: center; gap: 4px; }
+
+    .card-path {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      word-break: break-all;
+    }
+
+    .file-link {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    .file-link:hover { text-decoration: underline; }
+
+    .card-message {
+      font-size: 12px;
+      color: var(--muted);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.5;
+      font-style: italic;
+    }
+
+    .changed-files {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .file-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 1px 6px;
+      background: #21262d;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-footer {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .card-footer .btn { flex: 1; justify-content: center; }
+
+    .confirm-remove {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      width: 100%;
+    }
+
+    .confirm-remove span { flex: 1; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+
+    /* ── Modal ───────────────────────────────────────────────── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(1, 4, 9, 0.7);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-backdrop.hidden { display: none; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+
+    .field label { font-size: 13px; font-weight: 500; color: var(--text); }
+
+    .field input {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+
+    .field input:focus { border-color: var(--accent); }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .error-msg {
+      color: var(--red);
+      font-size: 12px;
+      margin-top: 8px;
+      min-height: 16px;
+    }
+
+    /* ── Empty state ─────────────────────────────────────────── */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+
+    .empty-state h2 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
+    .empty-state p { font-size: 14px; }
+
+    /* ── Scrollbar ───────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <img id="header-logo" class="header-logo" style="display:none" alt="Logo" />
+    <span id="header-title" class="header-title"></span>
+  </div>
+  <div class="header-right">
+    <span class="version-badge" id="version-badge"></span>
+    <button class="btn" onclick="openCreateModal()">+ New worktree</button>
+    <div class="pulse-wrap">
+      <div class="pulse" id="pulse-dot"></div>
+      <span id="pulse-label">Live</span>
+    </div>
+  </div>
+</header>
+
+<!-- Summary bar -->
+<div class="summary" id="summary">
+  <div class="summary-item total"><span class="summary-count" id="s-total">0</span> total</div>
+  <div class="summary-item working"><span class="summary-count" id="s-working">0</span> working</div>
+  <div class="summary-item thinking"><span class="summary-count" id="s-thinking">0</span> thinking</div>
+  <div class="summary-item waiting"><span class="summary-count" id="s-waiting">0</span> waiting</div>
+  <div class="summary-item idle"><span class="summary-count" id="s-idle">0</span> idle</div>
+</div>
+
+<!-- Card grid -->
+<div class="grid" id="grid"></div>
+
+<!-- Create worktree modal -->
+<div class="modal-backdrop hidden" id="modal-backdrop" onclick="closeModalIfBackdrop(event)">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-title" id="modal-title">New worktree</div>
+    <div class="field">
+      <label for="wt-name">Worktree name</label>
+      <input id="wt-name" type="text" placeholder="hotel-page" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="wt-branch">Branch name</label>
+      <input id="wt-branch" type="text" placeholder="feat/hotel-page" autocomplete="off" />
+    </div>
+    <div class="error-msg" id="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCreate()">Create →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const cfg = window.__CONFIG__ || {};
+
+  // ── Init ─────────────────────────────────────────────────────────────────────
+
+  if (cfg.logo) {
+    const img = document.getElementById('header-logo');
+    img.src = cfg.logo;
+    img.style.display = 'block';
+  }
+  document.getElementById('header-title').textContent = cfg.title || 'Worktree Dashboard';
+  document.title = cfg.title || 'Worktree Dashboard';
+  if (cfg.version) document.getElementById('version-badge').textContent = 'v' + cfg.version;
+
+  // ── Notification permission ──────────────────────────────────────────────────
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  // ── SSE ──────────────────────────────────────────────────────────────────────
+  let prevStatuses = {};
+
+  function connect() {
+    const es = new EventSource('/events');
+    es.addEventListener('worktrees', (e) => {
+      const data = JSON.parse(e.data);
+      renderDashboard(data);
+    });
+    es.onerror = () => {
+      setDisconnected();
+      es.close();
+      setTimeout(connect, 5000);
+    };
+    es.onopen = setConnected;
+  }
+
+  function setConnected() {
+    document.getElementById('pulse-dot').classList.remove('disconnected');
+    document.getElementById('pulse-label').textContent = 'Live';
+  }
+
+  function setDisconnected() {
+    document.getElementById('pulse-dot').classList.add('disconnected');
+    document.getElementById('pulse-label').textContent = 'Disconnected';
+  }
+
+  connect();
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
+  const statusLabels = {
+    working: 'Working',
+    thinking: 'Thinking',
+    waiting: 'Waiting',
+    done: 'Done',
+    idle: 'Idle',
+    'no session': 'No session',
+  };
+
+  function renderDashboard(worktrees) {
+    // Check for newly waiting worktrees and send notifications
+    for (const wt of worktrees) {
+      if (wt.status === 'waiting' && prevStatuses[wt.name] && prevStatuses[wt.name] !== 'waiting') {
+        notify(wt.name);
+      }
+    }
+    prevStatuses = Object.fromEntries(worktrees.map(wt => [wt.name, wt.status]));
+
+    // Summary
+    const counts = { working: 0, thinking: 0, waiting: 0, idle: 0 };
+    for (const wt of worktrees) { if (counts[wt.status] !== undefined) counts[wt.status]++; }
+    document.getElementById('s-total').textContent = worktrees.length;
+    document.getElementById('s-working').textContent = counts.working;
+    document.getElementById('s-thinking').textContent = counts.thinking;
+    document.getElementById('s-waiting').textContent = counts.waiting;
+    document.getElementById('s-idle').textContent = counts.idle;
+
+    // Cards
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+
+    if (worktrees.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><h2>No worktrees found</h2><p>Create a worktree with the button above.</p></div>';
+      return;
+    }
+
+    for (const wt of worktrees) {
+      grid.appendChild(buildCard(wt));
+    }
+  }
+
+  function esc(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function buildCard(wt) {
+    const statusKey = (wt.status || 'no session').replace(/\s+/g, '-');
+    const badgeKey = wt.status === 'no session' ? 'no-session' : (wt.status || 'idle');
+    const label = statusLabels[wt.status] || wt.status;
+
+    const card = document.createElement('div');
+    card.className = `card status-${statusKey}`;
+    card.dataset.name = wt.name;
+
+    const changedPills = (wt.changedFiles || [])
+      .map(f => `<span class="file-pill" title="${esc(f)}">${esc(f.split('/').pop())}</span>`)
+      .join('');
+
+    const fileHtml = wt.lastFile
+      ? `<a class="file-link" href="#" onclick="openFile(event,'${esc(wt.lastFile)}',${wt.lastLine||'null'})" title="${esc(wt.lastFile)}">${esc(wt.lastFile.split('/').pop())}${wt.lastLine ? ':' + wt.lastLine : ''}</a>`
+      : '<span style="color:var(--muted)">—</span>';
+
+    card.innerHTML = `
+      <div class="card-top-border"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <span class="card-name">${esc(wt.name)}${wt.isMain ? ' <span class="main-badge">main</span>' : ''}</span>
+          <span class="status-badge badge-${badgeKey}">${esc(label)}</span>
+        </div>
+        ${wt.branch ? `<div><span class="branch-pill">${esc(wt.branch)}</span></div>` : ''}
+        <div class="card-path">${esc(wt.path)}</div>
+        <div class="card-meta">
+          ${wt.lastActivity ? `<div class="card-meta-item">⏱ ${esc(wt.lastActivity)}</div>` : ''}
+          ${wt.lastTool ? `<div class="card-meta-item">🔧 ${esc(wt.lastTool)}</div>` : ''}
+          ${wt.sessionDuration ? `<div class="card-meta-item">⌚ ${esc(wt.sessionDuration)}</div>` : ''}
+          ${wt.tokenCount ? `<div class="card-meta-item">~${(wt.tokenCount/1000).toFixed(1)}k tokens</div>` : ''}
+        </div>
+        <div class="card-meta-item" style="gap:6px">
+          <span class="section-label">File</span>
+          ${fileHtml}
+        </div>
+        ${wt.lastMessage ? `<div class="card-message">"${esc(wt.lastMessage)}"</div>` : ''}
+        ${changedPills ? `<div class="changed-files">${changedPills}</div>` : ''}
+      </div>
+      <div class="card-footer" id="footer-${esc(wt.name)}">
+        <button class="btn btn-sm" onclick="openWorktree('${esc(wt.path)}')">Open in VS Code</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmRemove('${esc(wt.name)}')">Remove</button>
+      </div>
+    `;
+    return card;
+  }
+
+  // ── Actions ──────────────────────────────────────────────────────────────────
+
+  window.openWorktree = function(path) {
+    post('/api/open', { path }).catch(console.error);
+  };
+
+  window.openFile = function(e, filePath, line) {
+    e.preventDefault();
+    post('/api/open-file', { path: filePath, line }).catch(console.error);
+  };
+
+  window.confirmRemove = function(name) {
+    const footer = document.getElementById('footer-' + name);
+    if (!footer) return;
+    footer.innerHTML = `
+      <div class="confirm-remove">
+        <span>Remove <strong>${esc(name)}</strong>?</span>
+        <button class="btn btn-sm" onclick="cancelRemove('${esc(name)}')">Cancel</button>
+        <button class="btn btn-sm btn-danger" onclick="doRemove('${esc(name)}')">Remove</button>
+      </div>
+    `;
+  };
+
+  window.cancelRemove = function(name) {
+    const footer = document.getElementById('footer-' + name);
+    if (!footer) return;
+    footer.innerHTML = `
+      <button class="btn btn-sm" onclick="openWorktree('${esc(getCardPath(name))}')">Open in VS Code</button>
+      <button class="btn btn-sm btn-danger" onclick="confirmRemove('${esc(name)}')">Remove</button>
+    `;
+  };
+
+  window.doRemove = function(name) {
+    post('/api/worktree/remove', { name }).catch(e => alert('Remove failed: ' + e.message));
+  };
+
+  function getCardPath(name) {
+    const card = document.querySelector(`.card[data-name="${CSS.escape(name)}"]`);
+    return card ? card.querySelector('.card-path')?.textContent ?? '' : '';
+  }
+
+  // ── Modal ─────────────────────────────────────────────────────────────────────
+
+  window.openCreateModal = function() {
+    document.getElementById('wt-name').value = '';
+    document.getElementById('wt-branch').value = '';
+    document.getElementById('modal-error').textContent = '';
+    document.getElementById('modal-backdrop').classList.remove('hidden');
+    document.getElementById('wt-name').focus();
+  };
+
+  window.closeModal = function() {
+    document.getElementById('modal-backdrop').classList.add('hidden');
+  };
+
+  window.closeModalIfBackdrop = function(e) {
+    if (e.target === document.getElementById('modal-backdrop')) closeModal();
+  };
+
+  window.submitCreate = async function() {
+    const name = document.getElementById('wt-name').value.trim();
+    const branch = document.getElementById('wt-branch').value.trim();
+    const errEl = document.getElementById('modal-error');
+    errEl.textContent = '';
+
+    if (!name) { errEl.textContent = 'Worktree name is required.'; return; }
+    if (!branch) { errEl.textContent = 'Branch name is required.'; return; }
+
+    try {
+      const result = await post('/api/worktree/create', { name, branch });
+      closeModal();
+      if (result.path) {
+        post('/api/open', { path: result.path }).catch(console.error);
+      }
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  };
+
+  // Enter to submit in modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Enter' && !document.getElementById('modal-backdrop').classList.contains('hidden')) {
+      submitCreate();
+    }
+  });
+
+  // Auto-fill branch from name
+  document.getElementById('wt-name').addEventListener('input', (e) => {
+    const branchInput = document.getElementById('wt-branch');
+    if (!branchInput.dataset.touched) {
+      branchInput.value = 'feat/' + e.target.value.toLowerCase().replace(/\s+/g, '-');
+    }
+  });
+
+  document.getElementById('wt-branch').addEventListener('input', (e) => {
+    e.target.dataset.touched = e.target.value ? '1' : '';
+  });
+
+  // ── Notifications ─────────────────────────────────────────────────────────────
+
+  function notify(name) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(name + ' is waiting', {
+        body: 'The Claude agent has a question for you.',
+      });
+    }
+  }
+
+  // ── Fetch helper ──────────────────────────────────────────────────────────────
+
+  async function post(url, body) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Request failed');
+    return data;
+  }
+
+})();
+</script>
+</body>
+</html>
