@@ -329,16 +329,14 @@
 
     .card-footer .btn { flex: 1; justify-content: center; }
 
-    .confirm-remove {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
+    .modal-body {
+      font-size: 14px;
       color: var(--muted);
-      width: 100%;
+      line-height: 1.5;
+      margin-bottom: 16px;
     }
 
-    .confirm-remove span { flex: 1; }
+    .modal-body strong { color: var(--text); }
 
     .section-label {
       font-size: 11px;
@@ -473,6 +471,19 @@
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="submitCreate()">Create →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Remove worktree modal -->
+<div class="modal-backdrop hidden" id="remove-backdrop" onclick="closeRemoveModalIfBackdrop(event)">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="remove-title">
+    <div class="modal-title" id="remove-title">Remove worktree</div>
+    <div class="modal-body">Remove <strong id="remove-name"></strong>? This deletes the worktree and its branch.</div>
+    <div class="error-msg" id="remove-error"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeRemoveModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="submitRemove()">Remove</button>
     </div>
   </div>
 </div>
@@ -614,7 +625,7 @@
       </div>
       <div class="card-footer" id="footer-${esc(wt.name)}">
         <button class="btn btn-sm" onclick="openWorktree('${esc(wt.path)}')">Open in VS Code</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmRemove('${esc(wt.name)}')">Remove</button>
+        ${wt.isMain ? '' : `<button class="btn btn-sm btn-danger" onclick="confirmRemove('${esc(wt.name)}')">Remove</button>`}
       </div>
     `;
     return card;
@@ -631,35 +642,33 @@
     post('/api/open-file', { path: filePath, line }).catch(console.error);
   };
 
+  let removeTarget = null;
+
   window.confirmRemove = function(name) {
-    const footer = document.getElementById('footer-' + name);
-    if (!footer) return;
-    footer.innerHTML = `
-      <div class="confirm-remove">
-        <span>Remove <strong>${esc(name)}</strong>?</span>
-        <button class="btn btn-sm" onclick="cancelRemove('${esc(name)}')">Cancel</button>
-        <button class="btn btn-sm btn-danger" onclick="doRemove('${esc(name)}')">Remove</button>
-      </div>
-    `;
+    removeTarget = name;
+    document.getElementById('remove-name').textContent = name;
+    document.getElementById('remove-error').textContent = '';
+    document.getElementById('remove-backdrop').classList.remove('hidden');
   };
 
-  window.cancelRemove = function(name) {
-    const footer = document.getElementById('footer-' + name);
-    if (!footer) return;
-    footer.innerHTML = `
-      <button class="btn btn-sm" onclick="openWorktree('${esc(getCardPath(name))}')">Open in VS Code</button>
-      <button class="btn btn-sm btn-danger" onclick="confirmRemove('${esc(name)}')">Remove</button>
-    `;
+  window.closeRemoveModal = function() {
+    removeTarget = null;
+    document.getElementById('remove-backdrop').classList.add('hidden');
   };
 
-  window.doRemove = function(name) {
-    post('/api/worktree/remove', { name }).catch(e => alert('Remove failed: ' + e.message));
+  window.closeRemoveModalIfBackdrop = function(e) {
+    if (e.target === document.getElementById('remove-backdrop')) closeRemoveModal();
   };
 
-  function getCardPath(name) {
-    const card = document.querySelector(`.card[data-name="${CSS.escape(name)}"]`);
-    return card ? card.querySelector('.card-path')?.textContent ?? '' : '';
-  }
+  window.submitRemove = async function() {
+    if (!removeTarget) return;
+    try {
+      await post('/api/worktree/remove', { name: removeTarget });
+      closeRemoveModal();
+    } catch (e) {
+      document.getElementById('remove-error').textContent = e.message;
+    }
+  };
 
   // ── Modal ─────────────────────────────────────────────────────────────────────
 
@@ -701,7 +710,9 @@
 
   // Enter to submit in modal
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal();
+    const removeOpen = !document.getElementById('remove-backdrop').classList.contains('hidden');
+    if (e.key === 'Escape') { closeModal(); closeRemoveModal(); }
+    if (e.key === 'Enter' && removeOpen) { submitRemove(); return; }
     if (e.key === 'Enter' && !document.getElementById('modal-backdrop').classList.contains('hidden')) {
       submitCreate();
     }
