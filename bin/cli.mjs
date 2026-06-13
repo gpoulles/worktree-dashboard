@@ -76,6 +76,7 @@ function main() {
     worktrees: cliArgs.worktrees ?? fileConfig.worktrees ?? '.claude/worktrees',
     logo: loadLogo(cliArgs.logo ?? fileConfig.logo),
     run: normalizeRunConfig(fileConfig.run),
+    templates: fileConfig.templates ?? [],
     cwd: process.cwd(),
     version: VERSION,
   };

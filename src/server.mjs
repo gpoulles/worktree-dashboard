@@ -362,14 +362,72 @@ function handleGetWorktrees(req, res, config) {
   json(res, buildWorktreeData(config));
 }
 
+const VAR_PATTERN = /^[A-Za-z0-9._/-]+$/;
+
+// Replace {key} tokens in a string with sanitized variable values.
+function interpolate(template, vars) {
+  return String(template).replace(/\{(\w+)\}/g, (match, key) =>
+    Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : match
+  );
+}
+
+// Write the predefined prompt + a folder-open task that auto-launches Claude.
+function writeTemplateFiles(worktreePath, prompt) {
+  fs.writeFileSync(path.join(worktreePath, 'CLAUDE_TASK.md'), prompt + '\n');
+  const vscodeDir = path.join(worktreePath, '.vscode');
+  fs.mkdirSync(vscodeDir, { recursive: true });
+  const tasks = {
+    version: '2.0.0',
+    tasks: [
+      {
+        label: 'Start Claude',
+        type: 'shell',
+        command: 'claude',
+        args: ['Read CLAUDE_TASK.md and follow the instructions in it.'],
+        presentation: { reveal: 'always', panel: 'dedicated', focus: true },
+        runOptions: { runOn: 'folderOpen' },
+        problemMatcher: [],
+      },
+    ],
+  };
+  fs.writeFileSync(path.join(vscodeDir, 'tasks.json'), JSON.stringify(tasks, null, 2) + '\n');
+}
+
 function handleCreateWorktree(req, res, config) {
-  readBody(req).then(({ name, branch }) => {
+  readBody(req).then(({ name, branch, template, vars }) => {
+    let prompt = null;
+
+    if (template) {
+      const def = (config.templates || []).find((t) => t.id === template);
+      if (!def) return json(res, { error: `unknown template '${template}'` }, 400);
+      vars = vars || {};
+      for (const field of def.fields || []) {
+        const value = (vars[field.key] ?? '').trim();
+        if (!value) return json(res, { error: `${field.label || field.key} is required` }, 400);
+        if (!VAR_PATTERN.test(value) || value.includes('..')) {
+          return json(res, { error: `${field.label || field.key} contains invalid characters` }, 400);
+        }
+        vars[field.key] = value;
+      }
+      name = interpolate(def.name, vars);
+      branch = interpolate(def.branch, vars);
+      prompt = interpolate(def.prompt, vars);
+    }
+
     if (!name || !branch) return json(res, { error: 'name and branch required' }, 400);
     const script = path.join(__dirname, 'worktree-add.sh');
     const worktreesPath = path.resolve(config.cwd, config.worktrees);
     execFile('bash', [script, name, branch, worktreesPath], { cwd: config.cwd }, (err, stdout, stderr) => {
       if (err) return json(res, { error: stderr.trim() || err.message }, 500);
-      json(res, { ok: true, path: path.join(worktreesPath, name) });
+      const worktreePath = path.join(worktreesPath, name);
+      if (prompt) {
+        try {
+          writeTemplateFiles(worktreePath, prompt);
+        } catch (e) {
+          return json(res, { error: `worktree created but setup failed: ${e.message}` }, 500);
+        }
+      }
+      json(res, { ok: true, path: worktreePath });
     });
   });
 }

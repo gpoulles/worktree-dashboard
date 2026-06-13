@@ -437,7 +437,7 @@
 
     .field label { font-size: 13px; font-weight: 500; color: var(--text); }
 
-    .field input {
+    .field input, .field select {
       padding: 8px 12px;
       border-radius: 6px;
       border: 1px solid var(--border);
@@ -449,7 +449,7 @@
       outline: none;
     }
 
-    .field input:focus { border-color: var(--accent); }
+    .field input:focus, .field select:focus { border-color: var(--accent); }
 
     .modal-actions {
       display: flex;
@@ -516,13 +516,20 @@
 <div class="modal-backdrop hidden" id="modal-backdrop" onclick="closeModalIfBackdrop(event)">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-title" id="modal-title">New worktree</div>
-    <div class="field">
-      <label for="wt-name">Worktree name</label>
-      <input id="wt-name" type="text" placeholder="hotel-page" autocomplete="off" />
+    <div class="field" id="wt-type-field" style="display:none">
+      <label for="wt-type">Type</label>
+      <select id="wt-type"></select>
     </div>
-    <div class="field">
-      <label for="wt-branch">Branch name</label>
-      <input id="wt-branch" type="text" placeholder="feat/hotel-page" autocomplete="off" />
+    <div id="wt-template-fields"></div>
+    <div id="wt-default-fields">
+      <div class="field">
+        <label for="wt-name">Worktree name</label>
+        <input id="wt-name" type="text" placeholder="hotel-page" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="wt-branch">Branch name</label>
+        <input id="wt-branch" type="text" placeholder="feat/hotel-page" autocomplete="off" />
+      </div>
     </div>
     <div class="error-msg" id="modal-error"></div>
     <div class="modal-actions">
@@ -761,13 +768,52 @@
 
   // ── Modal ─────────────────────────────────────────────────────────────────────
 
+  const templates = Array.isArray(cfg.templates) ? cfg.templates : [];
+
+  function populateTypeSelect() {
+    const typeField = document.getElementById('wt-type-field');
+    const select = document.getElementById('wt-type');
+    if (!templates.length) { typeField.style.display = 'none'; return; }
+    typeField.style.display = '';
+    select.innerHTML = '<option value="">Blank</option>' +
+      templates.map(t => `<option value="${esc(t.id)}">${esc(t.label || t.id)}</option>`).join('');
+  }
+
+  function renderTemplateFields() {
+    const select = document.getElementById('wt-type');
+    const tplFields = document.getElementById('wt-template-fields');
+    const defaultFields = document.getElementById('wt-default-fields');
+    const tpl = templates.find(t => t.id === select.value);
+
+    if (!tpl) {
+      tplFields.innerHTML = '';
+      defaultFields.style.display = '';
+      return;
+    }
+    defaultFields.style.display = 'none';
+    tplFields.innerHTML = (tpl.fields || []).map(f => `
+      <div class="field">
+        <label for="tpl-${esc(f.key)}">${esc(f.label || f.key)}</label>
+        <input id="tpl-${esc(f.key)}" data-key="${esc(f.key)}" type="text"
+               placeholder="${esc(f.placeholder || '')}" autocomplete="off" />
+      </div>
+    `).join('');
+    const first = tplFields.querySelector('input');
+    if (first) first.focus();
+  }
+
   window.openCreateModal = function() {
     document.getElementById('wt-name').value = '';
     document.getElementById('wt-branch').value = '';
     document.getElementById('modal-error').textContent = '';
+    populateTypeSelect();
+    document.getElementById('wt-type').value = '';
+    renderTemplateFields();
     document.getElementById('modal-backdrop').classList.remove('hidden');
     document.getElementById('wt-name').focus();
   };
+
+  document.getElementById('wt-type').addEventListener('change', renderTemplateFields);
 
   window.closeModal = function() {
     document.getElementById('modal-backdrop').classList.add('hidden');
@@ -778,16 +824,30 @@
   };
 
   window.submitCreate = async function() {
-    const name = document.getElementById('wt-name').value.trim();
-    const branch = document.getElementById('wt-branch').value.trim();
     const errEl = document.getElementById('modal-error');
     errEl.textContent = '';
 
-    if (!name) { errEl.textContent = 'Worktree name is required.'; return; }
-    if (!branch) { errEl.textContent = 'Branch name is required.'; return; }
+    const templateId = document.getElementById('wt-type').value;
+    let payload;
+
+    if (templateId) {
+      const vars = {};
+      for (const input of document.querySelectorAll('#wt-template-fields input')) {
+        const value = input.value.trim();
+        if (!value) { errEl.textContent = (input.previousElementSibling?.textContent || 'Field') + ' is required.'; return; }
+        vars[input.dataset.key] = value;
+      }
+      payload = { template: templateId, vars };
+    } else {
+      const name = document.getElementById('wt-name').value.trim();
+      const branch = document.getElementById('wt-branch').value.trim();
+      if (!name) { errEl.textContent = 'Worktree name is required.'; return; }
+      if (!branch) { errEl.textContent = 'Branch name is required.'; return; }
+      payload = { name, branch };
+    }
 
     try {
-      const result = await post('/api/worktree/create', { name, branch });
+      const result = await post('/api/worktree/create', payload);
       closeModal();
       if (result.path) {
         post('/api/open', { path: result.path }).catch(console.error);

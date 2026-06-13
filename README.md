@@ -67,6 +67,42 @@ When `run` is configured, each worktree card gets a **Start** control. Starting 
 
 For an Angular worktree, the default command runs `ng serve --port 4201`, `4202`, … one per worktree. Frameworks that read the `PORT` env var (Next.js, Create React App) work with a simpler `"command": "npm run {script}"`.
 
+## Worktree templates
+
+Templates let you turn a repetitive setup into a one-click flow: pick a **Type** in the
+"New worktree" dialog, fill in a field (e.g. a review ID), and the dashboard creates the
+worktree and opens VS Code with Claude already started on a predefined prompt.
+
+Add a `templates` array to your config:
+
+```json
+{
+  "templates": [
+    {
+      "id": "review",
+      "label": "Review (ADO)",
+      "fields": [
+        { "key": "id", "label": "ADO Review ID", "placeholder": "12345" }
+      ],
+      "name": "review-{id}",
+      "branch": "review/{id}",
+      "prompt": "You are doing a peer review for Azure DevOps review #{id}.\nSummarize the changes on this branch, look for correctness, security, and style issues, and list anything that needs the author's attention."
+    }
+  ]
+}
+```
+
+`{key}` placeholders in `name`, `branch`, and `prompt` are replaced with the values you
+type. On create, the dashboard writes two files into the new worktree:
+
+- `CLAUDE_TASK.md` — the interpolated prompt.
+- `.vscode/tasks.json` — a `folderOpen` task that runs `claude` against that prompt.
+
+> **First run:** VS Code asks once to trust the folder and to *Allow Automatic Tasks*.
+> After you allow it, future template worktrees launch Claude automatically. Both files are
+> left untracked in the worktree — add them to a global gitignore if you'd rather not see
+> them in the changed-files list.
+
 ## How it works
 
 The dashboard reads from `~/.claude/projects/` — the JSONL session files written by Claude Code as it runs agents in each worktree. It parses these files to determine the current status of each agent (working, thinking, waiting, done, idle) and surfaces the last tool used, last file touched, and last message.
