@@ -340,6 +340,61 @@
 
     .confirm-remove span { flex: 1; }
 
+    /* ── Run / dev-server row ────────────────────────────────── */
+    .run-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+
+    .run-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .run-script {
+      font-family: var(--font-mono);
+      color: var(--text);
+    }
+
+    .run-port {
+      font-family: var(--font-mono);
+      color: var(--accent);
+      text-decoration: none;
+      margin-left: auto;
+    }
+
+    .run-port:hover { text-decoration: underline; }
+
+    .run-exited { color: var(--muted); }
+
+    .run-hint {
+      font-family: var(--font-mono);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .run-select {
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .run-row .btn { flex: 1; justify-content: center; }
+
     .section-label {
       font-size: 11px;
       font-weight: 600;
@@ -580,6 +635,37 @@
     return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function buildRunRow(wt) {
+    if (!wt.scripts || wt.scripts.length === 0) return '';
+    const run = wt.running;
+
+    if (run && run.status === 'running') {
+      return `
+        <div class="run-row">
+          <span class="run-dot"></span>
+          <span class="run-script">${esc(run.script)}</span>
+          <a class="run-port" href="${esc(run.url)}" target="_blank" rel="noopener" title="Open ${esc(run.url)}">localhost:${run.port} ↗</a>
+          <button class="btn btn-sm btn-danger" onclick="stopScript('${esc(wt.name)}')">Stop</button>
+        </div>
+      `;
+    }
+
+    const exited = run && run.status === 'exited';
+    const picker = wt.scripts.length > 1
+      ? `<select class="run-select" id="run-sel-${esc(wt.name)}">${wt.scripts.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>`
+      : `<input type="hidden" id="run-sel-${esc(wt.name)}" value="${esc(wt.scripts[0])}" />`;
+    const label = wt.scripts.length === 1 ? `▶ Start (${esc(wt.scripts[0])})` : '▶ Start';
+
+    return `
+      <div class="run-row">
+        ${exited ? `<span class="run-exited" title="exited with code ${esc(run.exitCode)}">stopped</span>` : ''}
+        ${picker}
+        <button class="btn btn-sm" onclick="startScript('${esc(wt.name)}')">${label}</button>
+        ${wt.defaultPort != null ? `<span class="run-hint">:${wt.defaultPort}</span>` : ''}
+      </div>
+    `;
+  }
+
   function buildCard(wt) {
     const statusKey = (wt.status || 'no session').replace(/\s+/g, '-');
     const badgeKey = wt.status === 'no session' ? 'no-session' : (wt.status || 'idle');
@@ -619,6 +705,7 @@
         ${wt.lastMessage ? `<div class="card-message">"${esc(wt.lastMessage)}"</div>` : ''}
         ${changedPills ? `<div class="changed-files">${changedPills}</div>` : ''}
       </div>
+      ${buildRunRow(wt)}
       <div class="card-footer" id="footer-${esc(wt.name)}">
         <button class="btn btn-sm" onclick="openWorktree('${esc(wt.path)}')">Open in VS Code</button>
         ${wt.isMain ? '' : `<button class="btn btn-sm btn-danger" onclick="confirmRemove('${esc(wt.name)}')">Remove</button>`}
@@ -636,6 +723,17 @@
   window.openFile = function(e, filePath, line) {
     e.preventDefault();
     post('/api/open-file', { path: filePath, line }).catch(console.error);
+  };
+
+  window.startScript = function(name) {
+    const el = document.getElementById('run-sel-' + name);
+    const script = el ? el.value : null;
+    if (!script) return;
+    post('/api/worktree/start', { name, script }).catch(e => alert('Start failed: ' + e.message));
+  };
+
+  window.stopScript = function(name) {
+    post('/api/worktree/stop', { name }).catch(e => alert('Stop failed: ' + e.message));
   };
 
   window.confirmRemove = function(name) {

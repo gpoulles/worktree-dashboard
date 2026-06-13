@@ -30,6 +30,15 @@ function loadFileConfig(configPath) {
   return {};
 }
 
+function normalizeRunConfig(run) {
+  if (!run) return null;
+  return {
+    scripts: Array.isArray(run.scripts) && run.scripts.length ? run.scripts : ['start'],
+    command: typeof run.command === 'string' ? run.command : 'npm run {script} -- --port {port}',
+    basePort: Number.isInteger(run.basePort) ? run.basePort : 4200,
+  };
+}
+
 function loadLogo(logoPath) {
   if (!logoPath) return null;
   const resolved = resolve(process.cwd(), logoPath);
@@ -66,6 +75,7 @@ function main() {
     title: cliArgs.title ?? fileConfig.title ?? 'Worktree Dashboard',
     worktrees: cliArgs.worktrees ?? fileConfig.worktrees ?? '.claude/worktrees',
     logo: loadLogo(cliArgs.logo ?? fileConfig.logo),
+    run: normalizeRunConfig(fileConfig.run),
     templates: fileConfig.templates ?? [],
     cwd: process.cwd(),
     version: VERSION,
