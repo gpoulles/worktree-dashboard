@@ -76,6 +76,26 @@ function getGitWorktrees(cwd) {
   }
 }
 
+function getBranchCommits(cwd, branch, baseBranch) {
+  if (!branch || branch.startsWith('HEAD')) return [];
+  // Commits on `branch` not reachable from `baseBranch`. For the main worktree
+  // (branch === baseBranch) this is empty, so fall back to its recent commits.
+  const range = (baseBranch && branch !== baseBranch) ? `${baseBranch}..${branch}` : branch;
+  const maxCount = (baseBranch && branch !== baseBranch) ? '' : '--max-count=10';
+  try {
+    const out = execSync(
+      `git log ${range} ${maxCount} --format=%H%x1f%h%x1f%s%x1f%cr%x1f%an`,
+      { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    );
+    return out.trim().split('\n').filter(Boolean).map((line) => {
+      const [hash, short, subject, relative, author] = line.split('\x1f');
+      return { hash, short, subject, relative, author };
+    });
+  } catch {
+    return [];
+  }
+}
+
 // ── Claude session JSONL ───────────────────────────────────────────────────────
 
 function findProjectDir(worktreePath) {
@@ -224,6 +244,7 @@ function parseSession(projectDir) {
 
 function buildWorktreeData(config) {
   const worktrees = getGitWorktrees(config.cwd);
+  const baseBranch = worktrees[0]?.branch ?? '';
   return worktrees.map((wt, i) => {
     const name = path.basename(wt.path);
     const isMain = i === 0;
@@ -234,6 +255,7 @@ function buildWorktreeData(config) {
       path: wt.path,
       branch: wt.branch ?? '',
       isMain,
+      commits: getBranchCommits(config.cwd, wt.branch, baseBranch),
       status: session?.status ?? 'no session',
       lastTool: session?.lastTool ?? null,
       lastFile: session?.lastFile ?? null,

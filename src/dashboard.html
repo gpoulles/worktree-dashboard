@@ -319,6 +319,43 @@
       white-space: nowrap;
     }
 
+    .commits {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 132px;
+      overflow-y: auto;
+    }
+
+    .commit-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .commit-hash {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent, #79b8ff);
+      flex-shrink: 0;
+    }
+
+    .commit-subject {
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .commit-time {
+      color: var(--muted);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
     .card-footer {
       padding: 10px 16px;
       border-top: 1px solid var(--border);
@@ -593,6 +630,19 @@
       .map(f => `<span class="file-pill" title="${esc(f)}">${esc(f.split('/').pop())}</span>`)
       .join('');
 
+    const commits = wt.commits || [];
+    const commitRows = commits
+      .map(c => `<div class="commit-item" title="${esc(c.subject)} — ${esc(c.author)}, ${esc(c.relative)}">`
+        + `<span class="commit-hash">${esc(c.short)}</span>`
+        + `<span class="commit-subject">${esc(c.subject)}</span>`
+        + `<span class="commit-time">${esc(c.relative)}</span></div>`)
+      .join('');
+    const commitsHtml = commitRows
+      ? `<div style="display:flex;flex-direction:column;gap:6px">`
+        + `<span class="section-label">${wt.isMain ? 'Recent commits' : `Commits ahead (${commits.length})`}</span>`
+        + `<div class="commits">${commitRows}</div></div>`
+      : '';
+
     const fileHtml = wt.lastFile
       ? `<a class="file-link" href="#" onclick="openFile(event,'${esc(wt.lastFile)}',${wt.lastLine||'null'})" title="${esc(wt.lastFile)}">${esc(wt.lastFile.split('/').pop())}${wt.lastLine ? ':' + wt.lastLine : ''}</a>`
       : '<span style="color:var(--muted)">—</span>';
@@ -618,6 +668,7 @@
         </div>
         ${wt.lastMessage ? `<div class="card-message">"${esc(wt.lastMessage)}"</div>` : ''}
         ${changedPills ? `<div class="changed-files">${changedPills}</div>` : ''}
+        ${commitsHtml}
       </div>
       <div class="card-footer" id="footer-${esc(wt.name)}">
         <button class="btn btn-sm" onclick="openWorktree('${esc(wt.path)}')">Open in VS Code</button>
