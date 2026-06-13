@@ -2,7 +2,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync, execFile } from 'child_process';
+import { execSync, execFile, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -10,6 +10,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ── SSE clients ────────────────────────────────────────────────────────────────
 
 const clients = new Set();
+
+// ── Running dev-server processes ─────────────────────────────────────────────────
+// Keyed by worktree name → { child, pid, port, script, status, logs, exitCode }
+const processes = new Map();
 
 function broadcast(event, data) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -74,6 +78,80 @@ function getGitWorktrees(cwd) {
   } catch {
     return [];
   }
+}
+
+// ── Dev-server processes ─────────────────────────────────────────────────────────
+
+function readScripts(worktreePath, allowlist) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(worktreePath, 'package.json'), 'utf8'));
+    const available = Object.keys(pkg.scripts || {});
+    return allowlist.filter((s) => available.includes(s));
+  } catch {
+    return [];
+  }
+}
+
+// Default port = basePort + worktree index, bumped past any port already in use.
+function assignPort(config, index) {
+  const base = config.run?.basePort ?? 4200;
+  const used = new Set([...processes.values()].filter((p) => p.status === 'running').map((p) => p.port));
+  let port = base + index;
+  while (used.has(port)) port++;
+  return port;
+}
+
+function runState(name) {
+  const p = processes.get(name);
+  if (!p) return null;
+  return { script: p.script, port: p.port, status: p.status, exitCode: p.exitCode ?? null, url: `http://localhost:${p.port}` };
+}
+
+function startProcess(config, wt, index, script) {
+  const port = assignPort(config, index);
+  const cmd = config.run.command.replaceAll('{script}', script).replaceAll('{port}', String(port));
+
+  // detached so we can kill the whole process group (npm → ng serve) on stop.
+  const child = spawn(cmd, {
+    cwd: wt.path,
+    shell: true,
+    detached: true,
+    env: { ...process.env, PORT: String(port) },
+  });
+
+  const entry = { child, pid: child.pid, port, script, status: 'running', logs: [], exitCode: null };
+  processes.set(wt.name, entry);
+
+  const append = (buf) => {
+    for (const line of buf.toString().split('\n')) {
+      if (!line.trim()) continue;
+      entry.logs.push(line);
+      if (entry.logs.length > 200) entry.logs.shift();
+    }
+  };
+  child.stdout?.on('data', append);
+  child.stderr?.on('data', append);
+  child.on('exit', (code) => { entry.status = 'exited'; entry.exitCode = code; });
+  child.on('error', (err) => { entry.status = 'exited'; entry.logs.push(`[spawn error] ${err.message}`); });
+
+  return entry;
+}
+
+function stopProcess(name) {
+  const entry = processes.get(name);
+  if (!entry || entry.status !== 'running') return false;
+  try {
+    // negative pid → kill the entire process group started with detached: true
+    process.kill(-entry.child.pid, 'SIGTERM');
+  } catch {
+    try { entry.child.kill('SIGTERM'); } catch {}
+  }
+  entry.status = 'exited';
+  return true;
+}
+
+function stopAllProcesses() {
+  for (const name of processes.keys()) stopProcess(name);
 }
 
 // ── Claude session JSONL ───────────────────────────────────────────────────────
@@ -229,11 +307,15 @@ function buildWorktreeData(config) {
     const isMain = i === 0;
     const projectDir = findProjectDir(wt.path);
     const session = parseSession(projectDir);
+    const scripts = config.run ? readScripts(wt.path, config.run.scripts) : [];
     return {
       name,
       path: wt.path,
       branch: wt.branch ?? '',
       isMain,
+      scripts,
+      defaultPort: config.run ? (config.run.basePort ?? 4200) + i : null,
+      running: runState(name),
       status: session?.status ?? 'no session',
       lastTool: session?.lastTool ?? null,
       lastFile: session?.lastFile ?? null,
@@ -306,6 +388,42 @@ function handleRemoveWorktree(req, res, config) {
   });
 }
 
+function handleStartScript(req, res, config) {
+  readBody(req).then(({ name, script }) => {
+    if (!config.run) return json(res, { error: 'script running is not configured' }, 400);
+    if (!name || !script) return json(res, { error: 'name and script required' }, 400);
+    const existing = processes.get(name);
+    if (existing?.status === 'running') return json(res, { error: 'a script is already running' }, 400);
+
+    const data = buildWorktreeData(config);
+    const index = data.findIndex((wt) => wt.name === name);
+    const wt = data[index];
+    if (!wt) return json(res, { error: 'worktree not found' }, 404);
+    if (!wt.scripts.includes(script)) return json(res, { error: `script "${script}" not allowed` }, 400);
+
+    try {
+      const entry = startProcess(config, wt, index, script);
+      json(res, { ok: true, port: entry.port, url: `http://localhost:${entry.port}` });
+    } catch (err) {
+      json(res, { error: err.message }, 500);
+    }
+  });
+}
+
+function handleStopScript(req, res) {
+  readBody(req).then(({ name }) => {
+    if (!name) return json(res, { error: 'name required' }, 400);
+    if (!stopProcess(name)) return json(res, { error: 'no running script' }, 400);
+    json(res, { ok: true });
+  });
+}
+
+function handleLogs(req, res) {
+  const name = new URL(req.url, 'http://localhost').searchParams.get('name');
+  const entry = name ? processes.get(name) : null;
+  json(res, { logs: entry?.logs ?? [], status: entry?.status ?? null });
+}
+
 function handleOpen(req, res) {
   readBody(req).then(({ path: p }) => {
     if (!p) return json(res, { error: 'path required' }, 400);
@@ -341,6 +459,9 @@ export function createServer(config) {
     if (method === 'GET' && pathname === '/api/worktrees') return handleGetWorktrees(req, res, config);
     if (method === 'POST' && pathname === '/api/worktree/create') return handleCreateWorktree(req, res, config);
     if (method === 'POST' && pathname === '/api/worktree/remove') return handleRemoveWorktree(req, res, config);
+    if (method === 'POST' && pathname === '/api/worktree/start') return handleStartScript(req, res, config);
+    if (method === 'POST' && pathname === '/api/worktree/stop') return handleStopScript(req, res);
+    if (method === 'GET' && pathname === '/api/worktree/logs') return handleLogs(req, res);
     if (method === 'POST' && pathname === '/api/open') return handleOpen(req, res);
     if (method === 'POST' && pathname === '/api/open-file') return handleOpenFile(req, res);
     if (method === 'OPTIONS') { res.writeHead(204); return res.end(); }
@@ -355,6 +476,14 @@ export function createServer(config) {
     broadcast('worktrees', data);
   }, 3000);
 
-  server.on('close', () => clearInterval(interval));
+  server.on('close', () => {
+    clearInterval(interval);
+    stopAllProcesses();
+  });
+
+  // Detached dev-server groups outlive the parent, so kill them synchronously on
+  // exit too — the server 'close' event may not fire before process.exit().
+  process.on('exit', stopAllProcesses);
+
   return server;
 }

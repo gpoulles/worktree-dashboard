@@ -43,6 +43,30 @@ Create `.worktree-dashboard.json` in your project root. CLI flags override these
 }
 ```
 
+## Running dev servers per worktree
+
+Add a `run` block to start a project script (e.g. `ng serve`) from each worktree, with a different port per worktree so they can run side by side.
+
+```json
+{
+  "run": {
+    "scripts": ["start"],
+    "command": "npm run {script} -- --port {port}",
+    "basePort": 4200
+  }
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `scripts` | `["start"]` | Allowlist of `package.json` scripts that may be started. Only scripts that exist in a worktree's `package.json` are shown. |
+| `command` | `npm run {script} -- --port {port}` | Command template. `{script}` and `{port}` are substituted before running. |
+| `basePort` | `4200` | Port for the first worktree; each subsequent worktree gets `basePort + index`, skipping ports already in use. |
+
+When `run` is configured, each worktree card gets a **Start** control. Starting a script launches it in the worktree directory with the assigned port (also exported as the `PORT` env var) and shows a clickable `localhost:<port>` link. **Stop** terminates the process group. Processes are also stopped when the dashboard shuts down.
+
+For an Angular worktree, the default command runs `ng serve --port 4201`, `4202`, … one per worktree. Frameworks that read the `PORT` env var (Next.js, Create React App) work with a simpler `"command": "npm run {script}"`.
+
 ## How it works
 
 The dashboard reads from `~/.claude/projects/` — the JSONL session files written by Claude Code as it runs agents in each worktree. It parses these files to determine the current status of each agent (working, thinking, waiting, done, idle) and surfaces the last tool used, last file touched, and last message.
