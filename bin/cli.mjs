@@ -73,15 +73,15 @@ function main() {
   const server = createServer(config);
   server.listen(config.port, '127.0.0.1', () => {
     const url = `http://localhost:${config.port}`;
-    console.log(`\n  worktree-dashboard v${VERSION}`);
-    console.log(`  ${url}\n`);
-    console.log(`  Watching ${config.worktrees}/`);
-    console.log('  Press Ctrl+C to stop\n');
+    console.log(`\n  🌳 Worktree Dashboard is up and running! (v${VERSION})`);
+    console.log(`\n  Open it in your browser: ${url}`);
+    console.log(`  Keeping an eye on ${config.worktrees}/ for you.`);
+    console.log('\n  All set — press Ctrl+C whenever you want to stop.\n');
     openBrowser(url);
   });
 
   process.on('SIGINT', () => {
-    console.log('\n  Shutting down...');
+    console.log('\n  👋 Thanks for stopping by — shutting down. See you next time!\n');
     server.close();
     process.exit(0);
   });
