@@ -66,6 +66,7 @@ function main() {
     title: cliArgs.title ?? fileConfig.title ?? 'Worktree Dashboard',
     worktrees: cliArgs.worktrees ?? fileConfig.worktrees ?? '.claude/worktrees',
     logo: loadLogo(cliArgs.logo ?? fileConfig.logo),
+    templates: fileConfig.templates ?? [],
     cwd: process.cwd(),
     version: VERSION,
   };
