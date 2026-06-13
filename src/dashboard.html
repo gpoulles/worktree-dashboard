@@ -614,7 +614,7 @@
       </div>
       <div class="card-footer" id="footer-${esc(wt.name)}">
         <button class="btn btn-sm" onclick="openWorktree('${esc(wt.path)}')">Open in VS Code</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmRemove('${esc(wt.name)}')">Remove</button>
+        ${wt.isMain ? '' : `<button class="btn btn-sm btn-danger" onclick="confirmRemove('${esc(wt.name)}')">Remove</button>`}
       </div>
     `;
     return card;

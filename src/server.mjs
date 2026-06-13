@@ -295,6 +295,8 @@ function handleCreateWorktree(req, res, config) {
 function handleRemoveWorktree(req, res, config) {
   readBody(req).then(({ name }) => {
     if (!name) return json(res, { error: 'name required' }, 400);
+    const target = buildWorktreeData(config).find((wt) => wt.name === name);
+    if (target?.isMain) return json(res, { error: 'cannot remove the main worktree' }, 400);
     const script = path.join(__dirname, 'worktree-remove.sh');
     const worktreesPath = path.resolve(config.cwd, config.worktrees);
     execFile('bash', [script, name, worktreesPath], { cwd: config.cwd }, (err, stdout, stderr) => {
