@@ -1,20 +1,35 @@
 {
   "name": "@poulles/worktree-dashboard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A local dashboard for monitoring and managing git worktrees with Claude Code agents",
   "type": "module",
   "bin": {
     "worktree-dashboard": "./bin/cli.mjs"
   },
-  "files": ["bin", "src"],
-  "engines": { "node": ">=18" },
-  "keywords": ["claude-code", "worktree", "git", "dashboard", "developer-tools"],
+  "files": [
+    "bin",
+    "src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude-code",
+    "worktree",
+    "git",
+    "dashboard",
+    "developer-tools"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/gpoulles/worktree-dashboard.git"
   },
-  "bugs": { "url": "https://github.com/gpoulles/worktree-dashboard/issues" },
+  "bugs": {
+    "url": "https://github.com/gpoulles/worktree-dashboard/issues"
+  },
   "homepage": "https://github.com/gpoulles/worktree-dashboard#readme",
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  }
 }
