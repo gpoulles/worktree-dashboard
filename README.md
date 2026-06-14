@@ -10,7 +10,7 @@ A local dashboard for monitoring and managing your git worktrees with Claude Cod
 npm install -g @gpoulles/worktree-dashboard
 ```
 
-Or run without installing:
+Or run it directly without installing:
 
 ```bash
 npx @gpoulles/worktree-dashboard
