@@ -1,6 +1,6 @@
 # @gpoulles/worktree-dashboard
 
-A local dashboard for monitoring and managing git worktrees with Claude Code agents.
+A local dashboard for monitoring and managing your git worktrees with Claude Code agents.
 
 ![Dashboard screenshot](screenshot.png)
 
