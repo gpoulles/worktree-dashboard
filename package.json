@@ -1,5 +1,5 @@
 {
-  "name": "@gpoulles/worktree-dashboard",
+  "name": "@poulles/worktree-dashboard",
   "version": "0.1.0",
   "description": "A local dashboard for monitoring and managing git worktrees with Claude Code agents",
   "type": "module",

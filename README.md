@@ -1,17 +1,17 @@
-# @gpoulles/worktree-dashboard
+# @poulles/worktree-dashboard
 
 A local dashboard for monitoring and managing your git worktrees with Claude Code agents.
 
 ## Install
 
 ```bash
-npm install -g @gpoulles/worktree-dashboard
+npm install -g @poulles/worktree-dashboard
 ```
 
 Or run it directly without installing:
 
 ```bash
-npx @gpoulles/worktree-dashboard
+npx @poulles/worktree-dashboard
 ```
 
 ## Usage
