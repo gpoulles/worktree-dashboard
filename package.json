@@ -8,7 +8,8 @@
   },
   "files": [
     "bin",
-    "src"
+    "src",
+    ".claude/hooks"
   ],
   "engines": {
     "node": ">=18"

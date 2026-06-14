@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync } from 'fs';
-import { resolve, join } from 'path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, chmodSync } from 'fs';
+import { resolve, join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import { createServer } from '../src/server.mjs';
 
-const VERSION = '0.1.0';
+const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const VERSION = JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')).version;
 
 function parseArgs(argv) {
   const args = {};
@@ -50,6 +52,84 @@ function loadLogo(logoPath) {
   return `data:${mime};base64,${data}`;
 }
 
+// ── `init` command ──────────────────────────────────────────────────────────
+// Install the prompt-logging hooks into the current project so the dashboard can
+// show "what each worktree is working on". The dashboard only READS the logs in
+// `.worktree-logs/`; these Claude Code hooks are what create and write them.
+const HOOK_FILES = ['log-prompt-start.sh', 'log-prompt.sh'];
+const HOOK_EVENTS = {
+  UserPromptSubmit: '$CLAUDE_PROJECT_DIR/.claude/hooks/log-prompt-start.sh',
+  Stop: '$CLAUDE_PROJECT_DIR/.claude/hooks/log-prompt.sh',
+};
+
+// Ensure settings.hooks[event] contains a command entry, without clobbering any
+// existing hooks (including a previous run of this command).
+function ensureHook(settings, event, command) {
+  settings.hooks ??= {};
+  const groups = (settings.hooks[event] ??= []);
+  const already = groups.some(g => (g.hooks ?? []).some(h => h.command === command));
+  if (already) return false;
+  groups.push({ hooks: [{ type: 'command', command }] });
+  return true;
+}
+
+function ensureGitignore(target) {
+  const file = join(target, '.gitignore');
+  const entry = '.worktree-logs/';
+  const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  if (existing.split('\n').some(l => l.trim() === entry)) return false;
+  const prefix = existing && !existing.endsWith('\n') ? '\n' : '';
+  writeFileSync(file, `${existing}${prefix}${entry}\n`);
+  return true;
+}
+
+function init() {
+  const target = process.cwd();
+  const srcHooks = join(PKG_ROOT, '.claude/hooks');
+  const destHooks = join(target, '.claude/hooks');
+
+  if (!existsSync(join(srcHooks, HOOK_FILES[0]))) {
+    console.error(`  ✗ Could not find bundled hooks at ${srcHooks}`);
+    process.exit(1);
+  }
+
+  mkdirSync(destHooks, { recursive: true });
+  for (const f of HOOK_FILES) {
+    copyFileSync(join(srcHooks, f), join(destHooks, f));
+    chmodSync(join(destHooks, f), 0o755);
+  }
+  console.log(`  ✓ Installed hooks → ${join('.claude', 'hooks')}/`);
+
+  const settingsPath = join(target, '.claude/settings.json');
+  let settings = {};
+  if (existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+    } catch (e) {
+      console.error(`  ✗ Could not parse ${settingsPath}: ${e.message}`);
+      console.error('    Fix or remove it, then re-run `worktree-dashboard init`.');
+      process.exit(1);
+    }
+  }
+  let added = false;
+  for (const [event, command] of Object.entries(HOOK_EVENTS)) {
+    added = ensureHook(settings, event, command) || added;
+  }
+  if (added) {
+    writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+    console.log(`  ✓ Wired hooks into ${join('.claude', 'settings.json')}`);
+  } else {
+    console.log(`  • Hooks already wired in ${join('.claude', 'settings.json')}`);
+  }
+
+  if (ensureGitignore(target)) console.log('  ✓ Added .worktree-logs/ to .gitignore');
+
+  console.log('\n  Prompt logging is set up. Notes:');
+  console.log('    • Requires `jq` and the `claude` CLI on your PATH (summaries use Claude).');
+  console.log('    • Restart any running Claude Code session to pick up the new hooks.');
+  console.log('    • Logs land in .worktree-logs/ in your main checkout.\n');
+}
+
 function openBrowser(url) {
   try {
     const procVersion = readFileSync('/proc/version', 'utf8').toLowerCase();
@@ -66,8 +146,31 @@ function openBrowser(url) {
   }
 }
 
+function printHelp() {
+  console.log(`
+  Worktree Dashboard (v${VERSION})
+
+  Usage:
+    worktree-dashboard [options]    Start the dashboard (default)
+    worktree-dashboard init         Install prompt-logging hooks into this project
+    worktree-dashboard --help       Show this help
+
+  Options:
+    --port <n>          Port to listen on (default 3333)
+    --title <text>      Dashboard title
+    --worktrees <path>  Worktrees directory (default .claude/worktrees)
+    --logo <path>       Path to a logo image
+    --config <path>     Path to a .worktree-dashboard.json config file
+`);
+}
+
 function main() {
-  const cliArgs = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  const command = argv[0];
+  if (command === 'init') return init();
+  if (command === '--help' || command === '-h' || command === 'help') return printHelp();
+
+  const cliArgs = parseArgs(argv);
   const fileConfig = loadFileConfig(cliArgs.configPath);
 
   const config = {
