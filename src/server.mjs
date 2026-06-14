@@ -80,6 +80,25 @@ function getGitWorktrees(cwd) {
   }
 }
 
+// Recent commits for a worktree's checked-out branch. Newest first.
+function getRecentCommits(worktreePath, limit = 5) {
+  try {
+    const out = execSync(
+      `git log -n ${limit} --no-color --format=%h%x00%s%x00%cr%x00%an`,
+      { cwd: worktreePath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    return out
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [hash, subject, relativeDate, author] = line.split('\0');
+        return { hash, subject, relativeDate, author };
+      });
+  } catch {
+    return [];
+  }
+}
+
 // ── Dev-server processes ─────────────────────────────────────────────────────────
 
 function readScripts(worktreePath, allowlist) {
@@ -308,12 +327,14 @@ function buildWorktreeData(config) {
     const projectDir = findProjectDir(wt.path);
     const session = parseSession(projectDir);
     const scripts = config.run ? readScripts(wt.path, config.run.scripts) : [];
+    const commits = getRecentCommits(wt.path);
     return {
       name,
       path: wt.path,
       branch: wt.branch ?? '',
       isMain,
       scripts,
+      commits,
       defaultPort: config.run ? (config.run.basePort ?? 4200) + i : null,
       running: runState(name),
       status: session?.status ?? 'no session',

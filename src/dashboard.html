@@ -319,6 +319,41 @@
       white-space: nowrap;
     }
 
+    .commits {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .commit-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .commit-hash {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .commit-subject {
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .commit-date {
+      color: var(--muted);
+      font-size: 10px;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
     .card-footer {
       padding: 10px 16px;
       border-top: 1px solid var(--border);
@@ -679,6 +714,14 @@
       .map(f => `<span class="file-pill" title="${esc(f)}">${esc(f.split('/').pop())}</span>`)
       .join('');
 
+    const commitRows = (wt.commits || [])
+      .map(c => `<div class="commit-row" title="${esc(c.subject)} — ${esc(c.author || '')}">
+          <span class="commit-hash">${esc(c.hash)}</span>
+          <span class="commit-subject">${esc(c.subject)}</span>
+          <span class="commit-date">${esc(c.relativeDate || '')}</span>
+        </div>`)
+      .join('');
+
     const fileHtml = wt.lastFile
       ? `<a class="file-link" href="#" onclick="openFile(event,'${esc(wt.lastFile)}',${wt.lastLine||'null'})" title="${esc(wt.lastFile)}">${esc(wt.lastFile.split('/').pop())}${wt.lastLine ? ':' + wt.lastLine : ''}</a>`
       : '<span style="color:var(--muted)">—</span>';
@@ -704,6 +747,7 @@
         </div>
         ${wt.lastMessage ? `<div class="card-message">"${esc(wt.lastMessage)}"</div>` : ''}
         ${changedPills ? `<div class="changed-files">${changedPills}</div>` : ''}
+        ${commitRows ? `<div class="card-meta-item" style="gap:6px"><span class="section-label">Commits</span></div><div class="commits">${commitRows}</div>` : ''}
       </div>
       ${buildRunRow(wt)}
       <div class="card-footer" id="footer-${esc(wt.name)}">
