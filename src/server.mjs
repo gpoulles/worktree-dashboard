@@ -179,14 +179,18 @@ function findProjectDir(worktreePath) {
   const projectsDir = path.join(os.homedir(), '.claude', 'projects');
   if (!fs.existsSync(projectsDir)) return null;
 
-  const encoded = worktreePath.replace(/^\//, '').replace(/\//g, '-');
+  // Claude Code names a project's session folder by replacing EVERY
+  // non-alphanumeric character in the absolute path with '-' (slashes, dots,
+  // and spaces all become '-', including the leading slash).
+  const encoded = worktreePath.replace(/[^a-zA-Z0-9]/g, '-');
   const direct = path.join(projectsDir, encoded);
   if (fs.existsSync(direct)) return direct;
 
-  // Fallback: scan for the closest match by basename
+  // Fallback: scan for the closest match by basename. Normalize the basename
+  // the same way so worktree folder names with spaces/dots still match.
   let best = null;
   let bestScore = 0;
-  const basename = path.basename(worktreePath);
+  const basename = path.basename(worktreePath).replace(/[^a-zA-Z0-9]/g, '-');
   try {
     for (const dir of fs.readdirSync(projectsDir)) {
       if (dir.endsWith(basename) || dir.endsWith(`-${basename}`)) {
