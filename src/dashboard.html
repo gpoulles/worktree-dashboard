@@ -261,6 +261,59 @@
       white-space: nowrap;
     }
 
+    .last-prompt {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 8px 10px;
+      background: rgba(88,166,255,.06);
+      border: 1px solid #58a6ff22;
+      border-radius: 6px;
+    }
+
+    /* Turn still in flight — the prompt is the worktree's current task. */
+    .last-prompt-active {
+      background: rgba(63,185,80,.07);
+      border-color: #3fb95033;
+    }
+
+    .last-prompt-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .last-prompt-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .last-prompt-active .last-prompt-label { color: var(--green); }
+
+    .last-prompt-active .last-prompt-label::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .last-prompt-summary {
+      font-size: 12.5px;
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .last-prompt-at {
+      font-size: 10px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      flex-shrink: 0;
+    }
+
     .card-meta {
       font-size: 12px;
       color: var(--muted);
@@ -722,6 +775,21 @@
         </div>`)
       .join('');
 
+    const lp = wt.lastPrompt;
+    const lpFiles = lp && Array.isArray(lp.files) && lp.files.length
+      ? lp.files.map(f => `<span class="file-pill" title="${esc(f)}">${esc(f.split('/').pop())}</span>`).join('')
+      : '';
+    const lastPromptHtml = lp && lp.text
+      ? `<div class="last-prompt${lp.working ? ' last-prompt-active' : ''}">
+          <div class="last-prompt-head">
+            <span class="section-label last-prompt-label">${lp.working ? 'Working on' : 'Last prompt'}</span>
+            ${lp.at ? `<span class="last-prompt-at">${esc(lp.at)}</span>` : ''}
+          </div>
+          <div class="last-prompt-summary">${esc(lp.text)}</div>
+          ${lpFiles ? `<div class="changed-files">${lpFiles}</div>` : ''}
+        </div>`
+      : '';
+
     const fileHtml = wt.lastFile
       ? `<a class="file-link" href="#" onclick="openFile(event,'${esc(wt.lastFile)}',${wt.lastLine||'null'})" title="${esc(wt.lastFile)}">${esc(wt.lastFile.split('/').pop())}${wt.lastLine ? ':' + wt.lastLine : ''}</a>`
       : '<span style="color:var(--muted)">—</span>';
@@ -734,6 +802,7 @@
           <span class="status-badge badge-${badgeKey}">${esc(label)}</span>
         </div>
         ${wt.branch ? `<div><span class="branch-pill">${esc(wt.branch)}</span></div>` : ''}
+        ${lastPromptHtml}
         <div class="card-path">${esc(wt.path)}</div>
         <div class="card-meta">
           ${wt.lastActivity ? `<div class="card-meta-item">⏱ ${esc(wt.lastActivity)}</div>` : ''}

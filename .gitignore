@@ -2,3 +2,5 @@ node_modules/
 *.png
 !src/
 .worktree-dashboard.json
+.worktree-logs/
+!.claude/settings.json

@@ -317,10 +317,45 @@ function parseSession(projectDir) {
   };
 }
 
+// ── Worktree prompt log ────────────────────────────────────────────────────────
+
+// Latest entry from the central, per-branch prompt log written by the Stop hook
+// (.claude/hooks/log-prompt.sh). Logs live in the MAIN checkout so all worktrees
+// share one gitignored location; the dashboard reads them from there.
+function readWorktreeLog(mainPath, branch) {
+  if (!mainPath || !branch) return null;
+  const safe = branch.replace(/\//g, '-');
+  const file = path.join(mainPath, '.worktree-logs', `${safe}.jsonl`);
+  try {
+    const lines = fs.readFileSync(file, 'utf8').split('\n').filter(l => l.trim());
+    if (lines.length === 0) return null;
+    const last = JSON.parse(lines[lines.length - 1]);
+    // A "start" entry with no following "done" means the turn is still in flight
+    // → show it as the current task. Otherwise show the completed summary.
+    if (last.kind === 'start') {
+      return {
+        working: true,
+        text: last.prompt ?? null,
+        files: [],
+        at: last.ts ? formatRelativeTime(last.ts) : null,
+      };
+    }
+    return {
+      working: false,
+      text: last.summary ?? null,
+      files: Array.isArray(last.files) ? last.files : [],
+      at: last.ts ? formatRelativeTime(last.ts) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Worktree data assembly ─────────────────────────────────────────────────────
 
 function buildWorktreeData(config) {
   const worktrees = getGitWorktrees(config.cwd);
+  const mainPath = worktrees[0]?.path ?? config.cwd;
   return worktrees.map((wt, i) => {
     const name = path.basename(wt.path);
     const isMain = i === 0;
@@ -328,6 +363,7 @@ function buildWorktreeData(config) {
     const session = parseSession(projectDir);
     const scripts = config.run ? readScripts(wt.path, config.run.scripts) : [];
     const commits = getRecentCommits(wt.path);
+    const lastPrompt = readWorktreeLog(mainPath, wt.branch);
     return {
       name,
       path: wt.path,
@@ -335,6 +371,7 @@ function buildWorktreeData(config) {
       isMain,
       scripts,
       commits,
+      lastPrompt,
       defaultPort: config.run ? (config.run.basePort ?? 4200) + i : null,
       running: runState(name),
       status: session?.status ?? 'no session',
