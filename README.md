@@ -2,8 +2,6 @@
 
 A local dashboard for monitoring and managing your git worktrees with Claude Code agents.
 
-![Dashboard screenshot](screenshot.png)
-
 ## Install
 
 ```bash

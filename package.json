@@ -9,5 +9,12 @@
   "files": ["bin", "src"],
   "engines": { "node": ">=18" },
   "keywords": ["claude-code", "worktree", "git", "dashboard", "developer-tools"],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gpoulles/worktree-dashboard.git"
+  },
+  "bugs": { "url": "https://github.com/gpoulles/worktree-dashboard/issues" },
+  "homepage": "https://github.com/gpoulles/worktree-dashboard#readme",
+  "publishConfig": { "access": "public" }
 }
