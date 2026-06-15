@@ -56,10 +56,10 @@ function loadLogo(logoPath) {
 // Install the prompt-logging hooks into the current project so the dashboard can
 // show "what each worktree is working on". The dashboard only READS the logs in
 // `.worktree-logs/`; these Claude Code hooks are what create and write them.
-const HOOK_FILES = ['log-prompt-start.sh', 'log-prompt.sh'];
+const HOOK_FILES = ['log-prompt-start.mjs', 'log-prompt.mjs'];
 const HOOK_EVENTS = {
-  UserPromptSubmit: '$CLAUDE_PROJECT_DIR/.claude/hooks/log-prompt-start.sh',
-  Stop: '$CLAUDE_PROJECT_DIR/.claude/hooks/log-prompt.sh',
+  UserPromptSubmit: '$CLAUDE_PROJECT_DIR/.claude/hooks/log-prompt-start.mjs',
+  Stop: '$CLAUDE_PROJECT_DIR/.claude/hooks/log-prompt.mjs',
 };
 
 // Ensure settings.hooks[event] contains a command entry, without clobbering any
@@ -125,7 +125,7 @@ function init() {
   if (ensureGitignore(target)) console.log('  ✓ Added .worktree-logs/ to .gitignore');
 
   console.log('\n  Prompt logging is set up. Notes:');
-  console.log('    • Requires `jq` and the `claude` CLI on your PATH (summaries use Claude).');
+  console.log('    • Requires the `claude` CLI on your PATH (summaries use Claude Haiku).');
   console.log('    • Restart any running Claude Code session to pick up the new hooks.');
   console.log('    • Logs land in .worktree-logs/ in your main checkout.\n');
 }
